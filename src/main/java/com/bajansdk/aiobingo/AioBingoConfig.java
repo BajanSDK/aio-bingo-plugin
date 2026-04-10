@@ -89,28 +89,6 @@ public interface AioBingoConfig extends Config {
     }
 
     @ConfigItem(
-        keyName = "trackCollectionLog",
-        name = "Track Collection Log",
-        description = "Submit new collection log slot events",
-        section = trackingSection,
-        position = 13
-    )
-    default boolean trackCollectionLog() {
-        return true;
-    }
-
-    @ConfigItem(
-        keyName = "trackCombatAchievements",
-        name = "Track Combat Achievements",
-        description = "Submit combat achievement completion events",
-        section = trackingSection,
-        position = 14
-    )
-    default boolean trackCombatAchievements() {
-        return true;
-    }
-
-    @ConfigItem(
         keyName = "trackPvp",
         name = "Track PvP Kills",
         description = "Submit player kill events from PvP combat",

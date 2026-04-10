@@ -7,15 +7,10 @@ import com.bajansdk.aiobingo.model.LeaderboardEntry;
 import com.bajansdk.aiobingo.model.TeamProgress;
 import com.google.inject.Provides;
 import lombok.extern.slf4j.Slf4j;
-import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
 import net.runelite.api.GameState;
 import net.runelite.api.Player;
-import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.GameStateChanged;
-import net.runelite.api.events.ScriptPostFired;
-import net.runelite.api.events.VarbitChanged;
-import net.runelite.api.events.WidgetLoaded;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.ConfigChanged;
@@ -43,8 +38,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 @Slf4j
 @PluginDescriptor(
@@ -53,19 +46,6 @@ import java.util.regex.Pattern;
     tags = {"bingo", "clan", "event", "tracker", "team", "aiobingo"}
 )
 public class AioBingoPlugin extends Plugin {
-
-    // Pattern: "Congratulations, you've completed an easy combat task: <task name>."
-    private static final Pattern COMBAT_ACHIEVEMENT_PATTERN =
-        Pattern.compile("Congratulations, you've completed an? (?:easy|medium|hard|elite|master|grandmaster) combat task: (.+)\\.", Pattern.CASE_INSENSITIVE);
-
-    // Widget group for quest completion
-    private static final int WIDGET_GROUP_QUEST_COMPLETE = 153;
-
-    // Script fired when an item is added to the collection log
-    private static final int SCRIPT_COLLECTION_LOG_ITEM_ADDED = 2721;
-
-    // Varplayer holding the last collection log item ID
-    private static final int VARPLAYER_COLLECTION_LOG_ITEM = 2943;
 
     // Flush batch after this many events or after FLUSH_INTERVAL_SECONDS
     private static final int MAX_QUEUE_SIZE = 50;
@@ -425,60 +405,7 @@ public class AioBingoPlugin extends Plugin {
         }
     }
 
-    @Subscribe
-    public void onChatMessage(ChatMessage e) {
-        if (e.getType() != ChatMessageType.GAMEMESSAGE && e.getType() != ChatMessageType.SPAM) return;
 
-        if (config.trackCombatAchievements()) {
-            Matcher cm = COMBAT_ACHIEVEMENT_PATTERN.matcher(e.getMessage());
-            if (cm.matches()) {
-                String taskName = cm.group(1).trim();
-                enqueue(GameEvent.builder()
-                    .eventType(EventType.COMBAT_ACHIEVEMENT)
-                    .playerName(playerName())
-                    .timestamp(now())
-                    .objectiveName(taskName)
-                    .build());
-            }
-        }
-    }
-
-    @Subscribe
-    public void onWidgetLoaded(WidgetLoaded e) {
-        handleQuestCompleteWidget(e.getGroupId());
-    }
-
-    private void handleQuestCompleteWidget(int groupId) {
-        if (groupId != WIDGET_GROUP_QUEST_COMPLETE) return;
-        // Child 4 of widget 153 typically holds the quest name text
-        net.runelite.api.widgets.Widget nameWidget = client.getWidget(WIDGET_GROUP_QUEST_COMPLETE, 4);
-        String questName = nameWidget != null ? nameWidget.getText() : "Unknown";
-        enqueue(GameEvent.builder()
-            .eventType(EventType.QUEST_COMPLETE)
-            .playerName(playerName())
-            .timestamp(now())
-            .objectiveName(questName)
-            .build());
-    }
-
-    @Subscribe
-    public void onScriptPostFired(ScriptPostFired e) {
-        if (!config.trackCollectionLog()) return;
-        if (e.getScriptId() != SCRIPT_COLLECTION_LOG_ITEM_ADDED) return;
-        int itemId = client.getVarpValue(VARPLAYER_COLLECTION_LOG_ITEM);
-        enqueue(GameEvent.builder()
-            .eventType(EventType.COLLECTION_LOG)
-            .playerName(playerName())
-            .timestamp(now())
-            .collectionLogItemId(itemId)
-            .collectionLogItem("")
-            .build());
-    }
-
-    @Subscribe
-    public void onVarbitChanged(VarbitChanged e) {
-        checkDiaryCompletion(e);
-    }
 
     @Subscribe
     public void onPlayerLootReceived(PlayerLootReceived e) {
@@ -492,38 +419,4 @@ public class AioBingoPlugin extends Plugin {
             .build());
     }
 
-    private void checkDiaryCompletion(VarbitChanged e) {
-        if (e.getValue() != 1) return;
-        String diaryName = diaryNameForVarbit(e.getVarbitId());
-        if (diaryName == null) return;
-        enqueue(GameEvent.builder()
-            .eventType(EventType.ACHIEVEMENT_DIARY)
-            .playerName(playerName())
-            .timestamp(now())
-            .objectiveName(diaryName)
-            .build());
-    }
-
-    /**
-     * Maps known diary completion varbits to their display names.
-     * These are the varbits that flip to 1 when the full diary is completed.
-     * Verify against RuneLite's AchievementDiaryPlugin if adding tier-specific tracking.
-     */
-    private static String diaryNameForVarbit(int varbitId) {
-        switch (varbitId) {
-            case 4482: return "Ardougne Diary";
-            case 4483: return "Desert Diary";
-            case 4484: return "Falador Diary";
-            case 4485: return "Fremennik Provinces Diary";
-            case 4486: return "Kandarin Diary";
-            case 4487: return "Karamja Diary";
-            case 4488: return "Kourend & Kebos Diary";
-            case 4489: return "Lumbridge & Draynor Diary";
-            case 4490: return "Morytania Diary";
-            case 4491: return "Varrock Diary";
-            case 4492: return "Western Provinces Diary";
-            case 4493: return "Wilderness Diary";
-            default: return null;
-        }
-    }
 }
