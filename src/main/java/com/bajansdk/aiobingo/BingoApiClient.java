@@ -6,7 +6,6 @@ import com.bajansdk.aiobingo.model.LeaderboardEntry;
 import com.bajansdk.aiobingo.model.TeamProgress;
 import com.google.gson.FieldNamingPolicy;
 import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.*;
@@ -27,9 +26,9 @@ public class BingoApiClient {
     private final AioBingoConfig config;
 
     @Inject
-    public BingoApiClient(OkHttpClient http, Gson ignoredGson, AioBingoConfig config) {
+    public BingoApiClient(OkHttpClient http, Gson gson, AioBingoConfig config) {
         this.http = http;
-        this.gson = new GsonBuilder()
+        this.gson = gson.newBuilder()
             .setFieldNamingPolicy(FieldNamingPolicy.LOWER_CASE_WITH_UNDERSCORES)
             .create();
         this.config = config;

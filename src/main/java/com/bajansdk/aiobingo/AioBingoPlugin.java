@@ -42,7 +42,7 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 @PluginDescriptor(
     name = "AIO Bingo",
-    description = "Clan bingo event tracker — tracks drops, collection log, quests, diaries, combat achievements, and PvP. XP, kill counts, and raids are tracked via highscores. Events are sent to aiobingo.com only when opted in.",
+    description = "Clan bingo event tracker — tracks item drops and PvP kills. XP, kill counts, and other tile types are tracked via highscores. Events are sent to aiobingo.com only when opted in.",
     tags = {"bingo", "clan", "event", "tracker", "team", "aiobingo"}
 )
 public class AioBingoPlugin extends Plugin {
