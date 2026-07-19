@@ -1,5 +1,6 @@
 package com.bajansdk.aiobingo.model;
 
+import java.util.Map;
 import lombok.Builder;
 import lombok.Data;
 
@@ -16,11 +17,14 @@ public class GameEvent {
     private int itemId;
     private String itemName;
     private int quantity;
-    private int npcId;
+    private Integer npcId;
     private String npcName;
 
     /** Type string from LootReceivedType, e.g. "NPC", "PICKPOCKET", "EVENT". */
     private String lootSourceType;
+
+    /** Additional source details accepted by the API's metadata field. */
+    private Map<String, String> metadata;
 
     // --- PvP ---
     private String opponentName;
