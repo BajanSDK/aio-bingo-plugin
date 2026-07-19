@@ -81,7 +81,7 @@ Once RuneLite opens:
 1. Log into OSRS through the RuneLite client
 2. Look for the **bingo panel** in the right sidebar (it should show your board)
 3. Perform actions that match your tiles:
-   - Pick up a drop (ITEM_DROP)
+   - Receive NPC, raid, chest, or other RuneLite-recognized loot (ITEM_DROP)
 4. Events are batched and sent every **30 seconds**
 5. The panel refreshes every **30 seconds**
 
@@ -102,7 +102,7 @@ Plugin polls GET /api/board/{boardToken}/progress/{teamToken} every 30s
 
 | Type | Hook | Detection |
 |------|------|-----------|
-| ITEM_DROP | `NpcLootReceived` | One event per loot item stack |
+| ITEM_DROP | Loot Tracker `LootReceived` | One event per non-player loot item stack, including NPC, raid, chest, and reward loot |
 | PVP_KILL | `onPlayerLootReceived()` | One event per player loot item |
 
 ### Config Options
@@ -147,6 +147,7 @@ sudo apt install openjdk-11-jdk-headless
 - Check API logs: `docker compose logs -f api`
 - Verify tokens are correct in plugin settings
 - Events batch every 30s — wait at least that long
+- Ensure RuneLite's built-in **Loot Tracker** plugin is enabled; AIO Bingo uses its normalized loot events for item-drop tracking
 
 ---
 
@@ -159,7 +160,7 @@ The plugin tracks in-game OSRS events **only when enabled** and sends them to th
 | Data Collected | Purpose |
 |---------------|---------|
 | **Player display name** | Identify which team member triggered an event |
-| **Item drops** (item name + quantity) | Match drop-based bingo tiles |
+| **Item drops and reward loot** (item ID, name, quantity, and loot source) | Match drop-based bingo tiles |
 | **Player Kills** (Player killed name) | Match count to bingo tiles |
 
 ### What data is NOT collected
@@ -186,4 +187,3 @@ The plugin tracks in-game OSRS events **only when enabled** and sends them to th
 ### Third-party disclaimer
 
 This plugin is a **third-party application**. It is not affiliated with, endorsed by, or associated with Jagex Ltd, Old School RuneScape, or RuneLite. Use of this plugin is at your own discretion and in accordance with Jagex's third-party client guidelines.
-

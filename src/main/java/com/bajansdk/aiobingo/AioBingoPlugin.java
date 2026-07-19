@@ -11,16 +11,20 @@ import net.runelite.api.Client;
 import net.runelite.api.GameState;
 import net.runelite.api.Player;
 import net.runelite.api.events.GameStateChanged;
+import net.runelite.client.Notifier;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.ConfigChanged;
-import net.runelite.client.events.NpcLootReceived;
 import net.runelite.client.events.PlayerLootReceived;
-import net.runelite.client.game.ItemStack;
-import net.runelite.client.Notifier;
-import net.runelite.client.plugins.Plugin;
-import net.runelite.client.plugins.PluginDescriptor;
+import net.runelite.client.events.PluginChanged;
+import net.runelite.client.game.ItemManager;
 import net.runelite.client.game.SkillIconManager;
+import net.runelite.client.plugins.Plugin;
+import net.runelite.client.plugins.PluginDependency;
+import net.runelite.client.plugins.PluginDescriptor;
+import net.runelite.client.plugins.PluginManager;
+import net.runelite.client.plugins.loottracker.LootReceived;
+import net.runelite.client.plugins.loottracker.LootTrackerPlugin;
 import net.runelite.client.ui.ClientToolbar;
 import net.runelite.client.ui.NavigationButton;
 import net.runelite.client.util.ImageUtil;
@@ -45,6 +49,7 @@ import java.util.concurrent.TimeUnit;
     description = "Clan bingo event tracker — tracks item drops and PvP kills. XP, kill counts, and other tile types are tracked via highscores. Events are sent to aiobingo.com only when opted in.",
     tags = {"bingo", "clan", "event", "tracker", "team", "aiobingo"}
 )
+@PluginDependency(LootTrackerPlugin.class)
 public class AioBingoPlugin extends Plugin {
 
     // Flush batch after this many events or after FLUSH_INTERVAL_SECONDS
@@ -57,6 +62,9 @@ public class AioBingoPlugin extends Plugin {
     @Inject private ClientToolbar clientToolbar;
     @Inject private Notifier notifier;
     @Inject private SkillIconManager skillIconManager;
+    @Inject private ItemManager itemManager;
+    @Inject private PluginManager pluginManager;
+    @Inject private LootTrackerPlugin lootTrackerPlugin;
 
     private final ConcurrentLinkedQueue<GameEvent> eventQueue = new ConcurrentLinkedQueue<>();
 
@@ -93,6 +101,8 @@ public class AioBingoPlugin extends Plugin {
             .panel(pluginPanel)
             .build();
         clientToolbar.addNavigation(navButton);
+
+        warnIfLootTrackerInactive();
 
         scheduler = Executors.newSingleThreadScheduledExecutor();
         scheduleFlush();
@@ -328,6 +338,23 @@ public class AioBingoPlugin extends Plugin {
         List<GameEvent> batch = drainQueue();
         if (batch.isEmpty()) return;
         try {
+            for (GameEvent event : batch) {
+                if (event.getEventType() == EventType.ITEM_DROP) {
+                    String sourceName = event.getMetadata() == null
+                        ? null
+                        : event.getMetadata().get("loot_source_name");
+                    log.debug(
+                        "Sending item drop: player={}, itemId={}, itemName={}, quantity={}, sourceType={}, sourceName={}, timestamp={}",
+                        event.getPlayerName(),
+                        event.getItemId(),
+                        event.getItemName(),
+                        event.getQuantity(),
+                        event.getLootSourceType(),
+                        sourceName,
+                        event.getTimestamp()
+                    );
+                }
+            }
             apiClient.submitEventBatch(teamToken, batch);
         } catch (BingoApiException e) {
             if (e.isTokenInvalid()) {
@@ -360,6 +387,12 @@ public class AioBingoPlugin extends Plugin {
         return Instant.now().toString();
     }
 
+    private void warnIfLootTrackerInactive() {
+        if (!pluginManager.isPluginActive(lootTrackerPlugin)) {
+            notifier.notify("[AIO Bingo] RuneLite Loot Tracker must be enabled for automatic item-drop tracking.");
+        }
+    }
+
     // -------------------------------------------------------------------------
     // Event subscriptions
     // -------------------------------------------------------------------------
@@ -388,24 +421,26 @@ public class AioBingoPlugin extends Plugin {
     }
 
     @Subscribe
-    public void onNpcLootReceived(NpcLootReceived e) {
+    public void onLootReceived(LootReceived e) {
         if (!config.trackDrops()) return;
-        for (ItemStack item : e.getItems()) {
-            enqueue(GameEvent.builder()
-                .eventType(EventType.ITEM_DROP)
-                .playerName(playerName())
-                .timestamp(now())
-                .itemId(item.getId())
-                .itemName("")
-                .quantity(item.getQuantity())
-                .npcId(e.getNpc().getId())
-                .npcName(e.getNpc().getName())
-                .lootSourceType("NPC")
-                .build());
+
+        String timestamp = now();
+        for (GameEvent event : LootEventMapper.map(
+            e,
+            playerName(),
+            timestamp,
+            itemId -> itemManager.getItemComposition(itemId).getName()
+        )) {
+            enqueue(event);
         }
     }
 
-
+    @Subscribe
+    public void onPluginChanged(PluginChanged e) {
+        if (e.getPlugin() == lootTrackerPlugin && !e.isLoaded()) {
+            warnIfLootTrackerInactive();
+        }
+    }
 
     @Subscribe
     public void onPlayerLootReceived(PlayerLootReceived e) {
