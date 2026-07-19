@@ -7,6 +7,8 @@ import com.bajansdk.aiobingo.ui.BingoBoardPanel;
 import com.bajansdk.aiobingo.ui.BingoColors;
 import net.runelite.client.ui.FontManager;
 import net.runelite.client.ui.PluginPanel;
+import net.runelite.client.util.ImageUtil;
+import net.runelite.client.util.LinkBrowser;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -14,6 +16,7 @@ import javax.swing.border.MatteBorder;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.awt.image.BufferedImage;
 import java.util.List;
 
 /**
@@ -22,10 +25,27 @@ import java.util.List;
  */
 public class AioBingoPluginPanel extends PluginPanel {
 
+    private static final String WEBSITE_URL = "https://aiobingo.com";
+    private static final String DISCORD_URL = "https://discord.gg/Ag376YRv8p";
+    private static final String GITHUB_URL = "https://github.com/BajanSDK/aio-bingo-plugin";
+    private static final String BUY_ME_A_COFFEE_URL = "https://buymeacoffee.com/aiobingo";
+
     // ── Header labels ────────────────────────────────────────────────────────
     private final JLabel boardNameLabel  = new JLabel("AIO Bingo", SwingConstants.LEFT);
     private final JLabel statusDot       = new JLabel("\u25cf", SwingConstants.LEFT); // ●
     private final JLabel statusText      = new JLabel("Not configured", SwingConstants.LEFT);
+    private final JPanel statusBadge = new JPanel(new FlowLayout(FlowLayout.LEFT, 3, 0)) {
+        @Override
+        protected void paintComponent(Graphics graphics) {
+            Graphics2D g2 = (Graphics2D) graphics.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            Color accent = statusText.getForeground();
+            g2.setColor(new Color(accent.getRed(), accent.getGreen(), accent.getBlue(), 28));
+            g2.fillRoundRect(0, 0, getWidth(), getHeight(), getHeight(), getHeight());
+            g2.dispose();
+            super.paintComponent(graphics);
+        }
+    };
     private final JLabel progressLabel   = new JLabel("", SwingConstants.LEFT);
     private final JButton refreshButton  = buildRefreshButton();
 
@@ -64,59 +84,201 @@ public class AioBingoPluginPanel extends PluginPanel {
                 // Warm dark background
                 g2.setColor(BingoColors.SURFACE_2);
                 g2.fillRect(0, 0, getWidth(), getHeight());
-                // Gold bottom rule
-                g2.setColor(BingoColors.BORDER_BRIGHT);
+                // Quiet separator; the active tab supplies the gold accent.
+                g2.setColor(BingoColors.BORDER);
                 g2.fillRect(0, getHeight() - 1, getWidth(), 1);
                 g2.dispose();
             }
         };
         header.setOpaque(false);
         header.setBorder(new EmptyBorder(6, 8, 7, 8));
-
-        // ── Title row: "◆ AIO BINGO" + refresh button ────────────────────
-        JPanel titleRow = new JPanel(new BorderLayout(0, 0));
-        titleRow.setOpaque(false);
-
-        JLabel title = new JLabel("\u25c6 AIO BINGO"); // ◆
-        title.setFont(new Font("Dialog", Font.BOLD, 10));
-        title.setForeground(BingoColors.GOLD);
-        titleRow.add(title, BorderLayout.WEST);
-
-        refreshButton.setAlignmentX(Component.RIGHT_ALIGNMENT);
-        titleRow.add(refreshButton, BorderLayout.EAST);
-
-        // ── Board name row ────────────────────────────────────────────────
-        boardNameLabel.setFont(FontManager.getRunescapeSmallFont());
-        boardNameLabel.setForeground(BingoColors.PARCHMENT);
-
-        // ── Status row: dot + text ────────────────────────────────────────
-        JPanel statusRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
-        statusRow.setOpaque(false);
-
-        statusDot.setFont(new Font("Dialog", Font.PLAIN, 8));
-        statusDot.setForeground(BingoColors.PARCHMENT_FAINT);
-        statusText.setFont(FontManager.getRunescapeSmallFont());
-        statusText.setForeground(BingoColors.PARCHMENT_FAINT);
-
-        statusRow.add(statusDot);
-        statusRow.add(statusText);
-
-        // ── Progress row ──────────────────────────────────────────────────
-        progressLabel.setFont(FontManager.getRunescapeSmallFont());
-        progressLabel.setForeground(BingoColors.PARCHMENT_DIM);
-
-        // ── Stack all rows ────────────────────────────────────────────────
-        JPanel rows = new JPanel();
-        rows.setLayout(new BoxLayout(rows, BoxLayout.Y_AXIS));
-        rows.setOpaque(false);
-        rows.add(boardNameLabel);
-        rows.add(Box.createRigidArea(new Dimension(0, 2)));
-        rows.add(statusRow);
-        rows.add(progressLabel);
-
-        header.add(titleRow, BorderLayout.NORTH);
-        header.add(rows, BorderLayout.CENTER);
+        header.add(buildLinkBar(), BorderLayout.CENTER);
         return header;
+    }
+
+    private JPanel buildLinkBar() {
+        JPanel linkBar = new JPanel(new BorderLayout(0, 0));
+        linkBar.setOpaque(false);
+        linkBar.setPreferredSize(new Dimension(0, 34));
+
+        JPanel brand = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        brand.setOpaque(false);
+        brand.add(buildLinkButton(
+            new AioLogoIcon(32, BingoColors.GOLD),
+            new AioLogoIcon(32, BingoColors.GOLD_LIGHT),
+            "Open aiobingo.com",
+            WEBSITE_URL,
+            34));
+        brand.add(Box.createRigidArea(new Dimension(3, 0)));
+
+        JLabel wordmark = new JLabel("BINGO");
+        wordmark.setFont(new Font("Dialog", Font.BOLD, 10));
+        wordmark.setForeground(BingoColors.GOLD);
+        brand.add(wordmark);
+        linkBar.add(brand, BorderLayout.WEST);
+
+        JPanel supportLinks = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 2));
+        supportLinks.setOpaque(false);
+        supportLinks.add(buildImageLinkButton(
+            "/net/runelite/client/plugins/info/discord_icon.png",
+            "Join the AIO Bingo Discord",
+            DISCORD_URL));
+        supportLinks.add(buildImageLinkButton(
+            "/net/runelite/client/plugins/info/github_icon.png",
+            "View the AIO Bingo plugin on GitHub",
+            GITHUB_URL));
+        supportLinks.add(buildLinkButton(
+            new CoffeeIcon(24, BingoColors.PARCHMENT_DIM),
+            new CoffeeIcon(24, BingoColors.GOLD_LIGHT),
+            "Support AIO Bingo — buy me a coffee",
+            BUY_ME_A_COFFEE_URL,
+            30));
+        linkBar.add(supportLinks, BorderLayout.EAST);
+
+        return linkBar;
+    }
+
+    private static JButton buildImageLinkButton(String resource, String tooltip, String url) {
+        BufferedImage image = ImageUtil.loadImageResource(AioBingoPluginPanel.class, resource);
+        BufferedImage resizedImage = ImageUtil.resizeImage(image, 24, 24);
+        return buildLinkButton(
+            new ImageIcon(tintImage(resizedImage, BingoColors.PARCHMENT_DIM)),
+            new ImageIcon(tintImage(resizedImage, BingoColors.GOLD_LIGHT)),
+            tooltip,
+            url,
+            30);
+    }
+
+    private static BufferedImage tintImage(BufferedImage image, Color color) {
+        BufferedImage tinted = new BufferedImage(image.getWidth(), image.getHeight(), BufferedImage.TYPE_INT_ARGB);
+        int rgb = color.getRGB() & 0x00ffffff;
+
+        for (int y = 0; y < image.getHeight(); y++) {
+            for (int x = 0; x < image.getWidth(); x++) {
+                int alpha = image.getRGB(x, y) >>> 24;
+                tinted.setRGB(x, y, (alpha << 24) | rgb);
+            }
+        }
+
+        return tinted;
+    }
+
+    private static JButton buildLinkButton(Icon icon, Icon hoverIcon, String tooltip, String url, int size) {
+        JButton button = new JButton(icon) {
+            @Override
+            protected void paintComponent(Graphics graphics) {
+                if (getModel().isRollover() || getModel().isPressed()) {
+                    Graphics2D g2 = (Graphics2D) graphics.create();
+                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                    int alpha = getModel().isPressed() ? 36 : 22;
+                    g2.setColor(new Color(255, 255, 255, alpha));
+                    g2.fillOval(1, 1, getWidth() - 2, getHeight() - 2);
+                    g2.dispose();
+                }
+                super.paintComponent(graphics);
+            }
+        };
+        button.setPreferredSize(new Dimension(size, size));
+        button.setMinimumSize(new Dimension(size, size));
+        button.setBorder(new EmptyBorder(0, 0, 0, 0));
+        button.setContentAreaFilled(false);
+        button.setFocusPainted(false);
+        button.setRolloverEnabled(true);
+        button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        button.setToolTipText(tooltip);
+        button.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseEntered(MouseEvent event) {
+                button.setIcon(hoverIcon);
+            }
+
+            @Override
+            public void mouseExited(MouseEvent event) {
+                button.setIcon(icon);
+            }
+        });
+        button.addActionListener(event -> LinkBrowser.browse(url));
+        return button;
+    }
+
+    private static final class AioLogoIcon implements Icon {
+        private final int size;
+        private final Color accent;
+
+        private AioLogoIcon(int size, Color accent) {
+            this.size = size;
+            this.accent = accent;
+        }
+
+        @Override
+        public void paintIcon(Component component, Graphics graphics, int x, int y) {
+            Graphics2D g2 = (Graphics2D) graphics.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+            g2.setColor(BingoColors.SURFACE_3);
+            g2.fillOval(x + 1, y + 1, size - 2, size - 2);
+            g2.setStroke(new BasicStroke(2f));
+            g2.setColor(accent);
+            g2.drawOval(x + 2, y + 2, size - 5, size - 5);
+
+            Font font = new Font("Dialog", Font.BOLD, 10);
+            g2.setFont(font);
+            FontMetrics metrics = g2.getFontMetrics(font);
+            String label = "AIO";
+            int textX = x + (size - metrics.stringWidth(label)) / 2;
+            int textY = y + (size - metrics.getHeight()) / 2 + metrics.getAscent();
+            g2.drawString(label, textX, textY);
+            g2.dispose();
+        }
+
+        @Override
+        public int getIconWidth() {
+            return size;
+        }
+
+        @Override
+        public int getIconHeight() {
+            return size;
+        }
+    }
+
+    private static final class CoffeeIcon implements Icon {
+        private final int size;
+        private final Color accent;
+
+        private CoffeeIcon(int size, Color accent) {
+            this.size = size;
+            this.accent = accent;
+        }
+
+        @Override
+        public void paintIcon(Component component, Graphics graphics, int x, int y) {
+            Graphics2D g2 = (Graphics2D) graphics.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setColor(accent);
+            g2.setStroke(new BasicStroke(1.5f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            g2.drawOval(x + 1, y + 1, size - 3, size - 3);
+
+            g2.setStroke(new BasicStroke(1.4f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            g2.drawLine(x + 6, y + 10, x + 6, y + 14);
+            g2.drawArc(x + 6, y + 10, 10, 8, 180, 180);
+            g2.drawLine(x + 16, y + 10, x + 16, y + 14);
+            g2.drawArc(x + 15, y + 10, 4, 5, -90, 180);
+            g2.drawLine(x + 6, y + 18, x + 17, y + 18);
+            g2.drawArc(x + 8, y + 5, 3, 5, 90, 100);
+            g2.drawArc(x + 12, y + 5, 3, 5, 90, 100);
+            g2.dispose();
+        }
+
+        @Override
+        public int getIconWidth() {
+            return size;
+        }
+
+        @Override
+        public int getIconHeight() {
+            return size;
+        }
     }
 
     private static JButton buildRefreshButton() {
@@ -137,6 +299,45 @@ public class AioBingoPluginPanel extends PluginPanel {
     // =========================================================================
     // Tab bar + content card
     // =========================================================================
+
+    private JPanel buildBoardSummary() {
+        Font smallFont = FontManager.getRunescapeSmallFont();
+        boardNameLabel.setFont(new Font(smallFont.getName(), Font.BOLD, smallFont.getSize()));
+        boardNameLabel.setForeground(BingoColors.PARCHMENT);
+
+        statusDot.setFont(new Font("Dialog", Font.PLAIN, 8));
+        statusDot.setForeground(BingoColors.PARCHMENT_FAINT);
+        statusText.setFont(new Font(smallFont.getName(), Font.BOLD, smallFont.getSize()));
+        statusText.setForeground(BingoColors.PARCHMENT_FAINT);
+
+        progressLabel.setFont(smallFont);
+        progressLabel.setForeground(BingoColors.PARCHMENT_DIM);
+        progressLabel.setVisible(false);
+
+        JPanel titleRow = new JPanel(new BorderLayout(6, 0));
+        titleRow.setOpaque(false);
+        titleRow.add(boardNameLabel, BorderLayout.CENTER);
+
+        statusBadge.setOpaque(false);
+        statusBadge.setBorder(new EmptyBorder(1, 4, 1, 4));
+        statusBadge.add(statusDot);
+        statusBadge.add(statusText);
+
+        JPanel statusActions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 0));
+        statusActions.setOpaque(false);
+        statusActions.add(statusBadge);
+        statusActions.add(refreshButton);
+        titleRow.add(statusActions, BorderLayout.EAST);
+
+        JPanel summary = new JPanel(new BorderLayout(0, 3));
+        summary.setBackground(BingoColors.SURFACE_2);
+        summary.setBorder(BorderFactory.createCompoundBorder(
+            new MatteBorder(0, 0, 1, 0, BingoColors.BORDER),
+            new EmptyBorder(6, 8, 5, 8)));
+        summary.add(titleRow, BorderLayout.NORTH);
+        summary.add(progressLabel, BorderLayout.CENTER);
+        return summary;
+    }
 
     private JPanel buildContent() {
         JPanel wrapper = new JPanel(new BorderLayout(0, 0));
@@ -167,12 +368,16 @@ public class AioBingoPluginPanel extends PluginPanel {
         };
         tabBar.setOpaque(false);
         tabBar.setPreferredSize(new Dimension(0, 26));
-        tabBar.setBorder(new MatteBorder(0, 0, 1, 0, BingoColors.BORDER));
+        tabBar.setBorder(null);
         tabBar.add(boardTabBtn);
         tabBar.add(lbTabBtn);
 
         // boardPanel handles its own layout — grid pinned at top, list scrolls
         // internally via its own JScrollPane. No outer scroll pane needed.
+        JPanel boardCard = new JPanel(new BorderLayout(0, 0));
+        boardCard.setBackground(BingoColors.SURFACE);
+        boardCard.add(buildBoardSummary(), BorderLayout.NORTH);
+        boardCard.add(boardPanel, BorderLayout.CENTER);
 
         // ── Leaderboard scroll ────────────────────────────────────────────
         leaderboardPanel.setLayout(new BoxLayout(leaderboardPanel, BoxLayout.Y_AXIS));
@@ -186,7 +391,7 @@ public class AioBingoPluginPanel extends PluginPanel {
 
         // ── Card ──────────────────────────────────────────────────────────
         contentCard.setBackground(BingoColors.SURFACE);
-        contentCard.add(boardPanel, "board");
+        contentCard.add(boardCard, "board");
         contentCard.add(lbScroll, "leaderboard");
         cardLayout.show(contentCard, "board");
 
@@ -239,54 +444,68 @@ public class AioBingoPluginPanel extends PluginPanel {
     public void setTokenStatus(TokenStatus status, BingoBoard board) {
         String name   = (board != null && board.getName() != null) ? board.getName() : "AIO Bingo";
         String detail;
+        String statusTooltip;
         Color dotColor;
         boolean showRefresh = false;
 
         switch (status) {
             case NOT_CONFIGURED:
-                detail   = "Enter tokens in plugin settings";
+                detail   = "Setup required";
+                statusTooltip = "Enter tokens in plugin settings";
                 dotColor = BingoColors.PARCHMENT_FAINT;
                 name     = "AIO Bingo";
                 break;
             case VALIDATING:
                 detail   = "Validating\u2026";
+                statusTooltip = "Validating board and team tokens";
                 dotColor = BingoColors.AMBER;
                 break;
             case BOARD_VALID_TEAM_MISSING:
-                detail   = "Board found \u2014 enter team token";
+                detail   = "Team token needed";
+                statusTooltip = "Enter the team token in plugin settings";
                 dotColor = BingoColors.AMBER;
                 break;
             case ACTIVE:
                 detail   = "Active";
+                statusTooltip = "Connected and tracking board progress";
                 dotColor = BingoColors.GREEN_LIGHT;
                 break;
             case INACTIVE:
-                detail   = "Not started yet";
+                detail   = "Not started";
+                statusTooltip = "This board has not started yet";
                 dotColor = BingoColors.PARCHMENT_DIM;
                 break;
             case INVALID_TOKEN:
-                detail      = "Invalid token \u2014 check settings";
+                detail      = "Invalid token";
+                statusTooltip = "Check the tokens in plugin settings";
                 dotColor    = BingoColors.RED;
                 showRefresh = true;
                 break;
             case EXPIRED:
-                detail      = "Board expired \u2014 events paused";
+                detail      = "Expired";
+                statusTooltip = "Board expired — events are paused";
                 dotColor    = BingoColors.RED;
                 showRefresh = true;
                 break;
             case ERROR:
-                detail   = "Connection error \u2014 retrying\u2026";
+                detail   = "Connection error";
+                statusTooltip = "Connection error — retrying…";
                 dotColor = new Color(0xff, 0xa5, 0x00);
                 break;
             default:
                 detail   = "";
+                statusTooltip = null;
                 dotColor = BingoColors.PARCHMENT_FAINT;
         }
 
         boardNameLabel.setText(name);
+        boardNameLabel.setToolTipText(name);
         statusDot.setForeground(dotColor);
         statusText.setText(detail);
         statusText.setForeground(dotColor);
+        statusBadge.setToolTipText(statusTooltip);
+        statusText.setToolTipText(statusTooltip);
+        statusBadge.repaint();
         refreshButton.setVisible(showRefresh);
         refreshButton.addActionListener(e -> {
             if (onRefreshClicked != null) onRefreshClicked.run();
@@ -311,17 +530,24 @@ public class AioBingoPluginPanel extends PluginPanel {
     private void updateProgressLabel(TeamProgress progress) {
         if (progress == null) {
             progressLabel.setText("");
+            progressLabel.setVisible(false);
             return;
         }
         StringBuilder sb = new StringBuilder();
         sb.append(progress.getCompletedTiles()).append("/").append(progress.getTotalTiles()).append(" tiles");
         if (progress.getTotalPoints() > 0)
-            sb.append("  \u2022  ").append(progress.getTotalPoints()).append("pts");
-        if (progress.getLinesCompleted() > 0)
-            sb.append("  \u2022  ").append(progress.getLinesCompleted()).append("L");
+            sb.append("  \u00b7  ").append(progress.getTotalPoints()).append(" pts");
+        if (progress.getLinesCompleted() > 0) {
+            int lines = progress.getLinesCompleted();
+            sb.append("  \u00b7  ").append(lines).append(lines == 1 ? " line" : " lines");
+        }
         if (progress.isBlackout())
-            sb.append("  \u2605"); // ★
+            sb.append("  \u00b7  \u2605"); // · ★
         progressLabel.setText(sb.toString());
+        progressLabel.setVisible(true);
+        if (progressLabel.getParent() != null) {
+            progressLabel.getParent().revalidate();
+        }
     }
 
     // =========================================================================
