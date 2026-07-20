@@ -181,12 +181,12 @@ public class BingoBoardPanel extends JPanel {
     /**
      * Three collapsible sections:
      *   In Progress — sorted by progress ratio descending
-     *   Completed   — collapsible, starts expanded
+     *   Completed   — collapsible, starts collapsed
      *   Not Started — collapsible, starts expanded
      */
     private class TileListPanel extends JPanel implements Scrollable {
 
-        private boolean completedOpen  = true;
+        private boolean completedOpen  = false;
         private boolean notStartedOpen = true;
 
         private BingoBoard                 currentBoard;
@@ -229,8 +229,8 @@ public class BingoBoardPanel extends JPanel {
             inProg.sort((a, b) -> {
                 TileProgress pa = currentProgress != null ? currentProgress.getProgressFor(a.getId()) : null;
                 TileProgress pb = currentProgress != null ? currentProgress.getProgressFor(b.getId()) : null;
-                double ra = pa != null ? pa.getProgressRatio() : 0;
-                double rb = pb != null ? pb.getProgressRatio() : 0;
+                double ra = progressRatio(a, pa);
+                double rb = progressRatio(b, pb);
                 return Double.compare(rb, ra);
             });
 
@@ -239,7 +239,7 @@ public class BingoBoardPanel extends JPanel {
                 for (BingoTile tile : inProg) {
                     TileProgress tp = currentProgress != null
                         ? currentProgress.getProgressFor(tile.getId()) : null;
-                    add(buildRow(tile, tp, currentIcons.apply(tile)));
+                    addTileRow(tile, tp);
                 }
             }
 
@@ -249,7 +249,7 @@ public class BingoBoardPanel extends JPanel {
                     for (BingoTile tile : completed) {
                         TileProgress tp = currentProgress != null
                             ? currentProgress.getProgressFor(tile.getId()) : null;
-                        add(buildRow(tile, tp, currentIcons.apply(tile)));
+                        addTileRow(tile, tp);
                     }
                 }
             }
@@ -258,13 +258,18 @@ public class BingoBoardPanel extends JPanel {
                 addSectionHeader("Not Started", notStarted.size(), true, notStartedOpen);
                 if (notStartedOpen) {
                     for (BingoTile tile : notStarted) {
-                        add(buildRow(tile, null, currentIcons.apply(tile)));
+                        addTileRow(tile, null);
                     }
                 }
             }
 
             revalidate();
             repaint();
+        }
+
+        private void addTileRow(BingoTile tile, TileProgress progress) {
+            add(buildRow(tile, progress, currentIcons.apply(tile)));
+            add(Box.createRigidArea(new Dimension(0, 2)));
         }
 
         private void addSectionHeader(String title, int count,
@@ -288,12 +293,12 @@ public class BingoBoardPanel extends JPanel {
             header.setFont(new Font(
                 FontManager.getRunescapeSmallFont().getName(), Font.BOLD,
                 FontManager.getRunescapeSmallFont().getSize()));
-            header.setForeground(BingoColors.PARCHMENT_FAINT);
+            header.setForeground(BingoColors.PARCHMENT_DIM);
             header.setOpaque(true);
             header.setBackground(BingoColors.SURFACE_2);
-            header.setBorder(new EmptyBorder(4, 4, 4, 4));
+            header.setBorder(new EmptyBorder(5, 4, 4, 4));
             header.setAlignmentX(Component.LEFT_ALIGNMENT);
-            header.setMaximumSize(new Dimension(Integer.MAX_VALUE, 22));
+            header.setMaximumSize(new Dimension(Integer.MAX_VALUE, 25));
 
             if (collapsible) {
                 header.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
@@ -304,12 +309,12 @@ public class BingoBoardPanel extends JPanel {
                         else                           notStartedOpen = !notStartedOpen;
                         rebuildInternal();
                     }
-                    @Override public void mouseEntered(MouseEvent e) { header.setForeground(BingoColors.PARCHMENT_DIM); }
-                    @Override public void mouseExited(MouseEvent e)  { header.setForeground(BingoColors.PARCHMENT_FAINT); }
+                    @Override public void mouseEntered(MouseEvent e) { header.setForeground(BingoColors.PARCHMENT); }
+                    @Override public void mouseExited(MouseEvent e)  { header.setForeground(BingoColors.PARCHMENT_DIM); }
                 });
             }
 
-            add(Box.createRigidArea(new Dimension(0, 2)));
+            add(Box.createRigidArea(new Dimension(0, 4)));
             add(header);
         }
 
@@ -318,9 +323,9 @@ public class BingoBoardPanel extends JPanel {
             Color   accent   = BingoColors.tileAccent(typeName);
             boolean free     = TileType.FREE == tile.getTileType();
             boolean done     = free || tile.isCompleted() || (tp != null && tp.isCompleted());
-            boolean hasBar   = tp != null && !done && tp.getRequiredValue() > 1;
+            boolean hasBar   = tp != null && !done && progressTarget(tile, tp) > 1;
 
-            int rowH = hasBar ? 50 : 26;
+            int rowH = hasBar ? 54 : 28;
 
             JPanel row = new JPanel(new BorderLayout(6, 0)) {
                 @Override
@@ -332,7 +337,8 @@ public class BingoBoardPanel extends JPanel {
             row.setOpaque(false);
             row.setBorder(BorderFactory.createCompoundBorder(
                 new MatteBorder(0, 0, 1, 0, BingoColors.SURFACE_3),
-                new EmptyBorder(hasBar ? 3 : 5, 4, hasBar ? 3 : 5, 4)));
+                new EmptyBorder(hasBar ? 4 : 5, 4, hasBar ? 4 : 5, 4)));
+            row.setPreferredSize(new Dimension(PANEL_W, rowH));
             row.setMaximumSize(new Dimension(Integer.MAX_VALUE, rowH));
             row.setAlignmentX(Component.LEFT_ALIGNMENT);
 
@@ -363,7 +369,7 @@ public class BingoBoardPanel extends JPanel {
 
             if (hasBar) {
                 center.add(Box.createRigidArea(new Dimension(0, 3)));
-                center.add(buildProgressBar(tp, accent));
+                center.add(buildProgressBar(tile, tp, accent));
             }
 
             JLabel badge = buildBadge(tile, tp, done);
@@ -385,10 +391,11 @@ public class BingoBoardPanel extends JPanel {
             return row;
         }
 
-        private JPanel buildProgressBar(TileProgress tp, Color accent) {
+        private JPanel buildProgressBar(BingoTile tile, TileProgress tp, Color accent) {
             NumberFormat nf    = NumberFormat.getNumberInstance(Locale.US);
-            float        ratio = (float) Math.min(1.0, tp.getProgressRatio());
-            String       label = nf.format(tp.getCurrentValue()) + " / " + nf.format(tp.getRequiredValue());
+            float        ratio = (float) progressRatio(tile, tp);
+            long         target = progressTarget(tile, tp);
+            String       label = nf.format(tp.getCurrentValue()) + " / " + nf.format(target);
 
             JPanel bar = new JPanel() {
                 @Override
@@ -407,13 +414,13 @@ public class BingoBoardPanel extends JPanel {
                 }
             };
             bar.setOpaque(false);
-            bar.setPreferredSize(new Dimension(0, 5));
-            bar.setMaximumSize(new Dimension(Integer.MAX_VALUE, 5));
+            bar.setPreferredSize(new Dimension(0, 6));
+            bar.setMaximumSize(new Dimension(Integer.MAX_VALUE, 6));
             bar.setAlignmentX(Component.LEFT_ALIGNMENT);
 
             JLabel numLabel = new JLabel(label, SwingConstants.LEFT);
             numLabel.setFont(FontManager.getRunescapeSmallFont());
-            numLabel.setForeground(BingoColors.PARCHMENT_FAINT);
+            numLabel.setForeground(BingoColors.PARCHMENT_DIM);
             numLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
 
             JPanel container = new JPanel();
@@ -440,7 +447,10 @@ public class BingoBoardPanel extends JPanel {
                 JLabel l = new JLabel("T" + tier);
                 l.setFont(new Font(FontManager.getRunescapeSmallFont().getName(), Font.BOLD,
                     FontManager.getRunescapeSmallFont().getSize()));
-                l.setForeground(BingoColors.tierColor(tier));
+                l.setForeground(BingoColors.tierColor(tier).brighter());
+                l.setBackground(BingoColors.SURFACE_3);
+                l.setBorder(new EmptyBorder(1, 3, 1, 3));
+                l.setOpaque(true);
                 return l;
             }
             return null;
@@ -460,7 +470,7 @@ public class BingoBoardPanel extends JPanel {
 
     private static class BingoCellPanel extends JPanel {
 
-        private static final Font ICON_FONT  = new Font("Dialog", Font.PLAIN, 12);
+        private static final Font ICON_FONT  = new Font("Dialog", Font.PLAIN, 13);
         private static final Font CHECK_FONT = new Font("Dialog", Font.BOLD, 14);
 
         private final BingoTile    tile;
@@ -508,7 +518,7 @@ public class BingoBoardPanel extends JPanel {
 
             int w = getWidth(), h = getHeight();
             boolean hasTiers = tile != null && tile.hasTiers();
-            int barH  = (!complete && progress != null && progress.getRequiredValue() > 1) ? 3 : 0;
+            int barH  = (!complete && progress != null && progressTarget(tile, progress) > 1) ? 3 : 0;
             int pipH  = hasTiers ? 8 : 0;
             int iconH = h - barH - pipH;
 
@@ -522,13 +532,13 @@ public class BingoBoardPanel extends JPanel {
 
             if (tile != null) {
                 if (skillIcon != null) {
-                    int iw = 14, ih = 14;
+                    int iw = 15, ih = 15;
                     g2.drawImage(skillIcon, (w - iw) / 2, (iconH - ih) / 2, iw, ih, null);
                 } else {
                     g2.setFont(ICON_FONT);
                     Color ic = complete
-                        ? new Color(accent.getRed(), accent.getGreen(), accent.getBlue(), 160)
-                        : new Color(accent.getRed(), accent.getGreen(), accent.getBlue(), 220);
+                        ? new Color(accent.getRed(), accent.getGreen(), accent.getBlue(), 220)
+                        : new Color(accent.getRed(), accent.getGreen(), accent.getBlue(), 240);
                     g2.setColor(ic);
                     FontMetrics fm = g2.getFontMetrics();
                     String glyph = BingoColors.tileIcon(typeName);
@@ -564,12 +574,15 @@ public class BingoBoardPanel extends JPanel {
             }
 
             if (barH > 0) {
+                int barX = 2;
+                int barY = h - barH - 1;
+                int barW = Math.max(0, w - 4);
                 g2.setColor(BingoColors.SURFACE_3);
-                g2.fillRect(0, h - barH, w, barH);
-                float ratio = (float) progress.getProgressRatio();
+                g2.fillRect(barX, barY, barW, barH);
+                float ratio = (float) progressRatio(tile, progress);
                 if (ratio > 0f) {
                     g2.setColor(new Color(accent.getRed(), accent.getGreen(), accent.getBlue(), 200));
-                    g2.fillRect(0, h - barH, Math.max(1, (int) (w * ratio)), barH);
+                    g2.fillRect(barX, barY, Math.max(1, (int) (barW * ratio)), barH);
                 }
             }
 
@@ -638,5 +651,22 @@ public class BingoBoardPanel extends JPanel {
             if (s == null) return "";
             return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
         }
+    }
+
+    private static long progressTarget(BingoTile tile, TileProgress progress) {
+        if (tile != null && tile.hasTiers()) {
+            long nextThreshold = tile.getNextTierThreshold(progress.getCurrentTier());
+            if (nextThreshold > 0) return nextThreshold;
+        }
+        return progress.getRequiredValue();
+    }
+
+    private static double progressRatio(BingoTile tile, TileProgress progress) {
+        if (progress == null) return 0.0;
+        if (progress.isCompleted()) return 1.0;
+        if (tile != null && tile.hasTiers()) {
+            return tile.getTierProgressRatio(progress.getCurrentValue(), progress.getCurrentTier());
+        }
+        return progress.getProgressRatio();
     }
 }

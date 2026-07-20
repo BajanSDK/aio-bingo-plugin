@@ -17,7 +17,9 @@ import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
+import java.text.NumberFormat;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Side panel with a styled header, custom tab bar, bingo board grid, and leaderboard.
@@ -46,7 +48,10 @@ public class AioBingoPluginPanel extends PluginPanel {
             super.paintComponent(graphics);
         }
     };
-    private final JLabel progressLabel   = new JLabel("", SwingConstants.LEFT);
+    private final JPanel boardStatsPanel = new JPanel(new GridLayout(1, 3));
+    private final JLabel tilesStatValue  = new JLabel("0/0", SwingConstants.CENTER);
+    private final JLabel pointsStatValue = new JLabel("0", SwingConstants.CENTER);
+    private final JLabel linesStatValue  = new JLabel("0", SwingConstants.CENTER);
     private final JButton refreshButton  = buildRefreshButton();
 
     // ── Board + leaderboard ──────────────────────────────────────────────────
@@ -65,6 +70,8 @@ public class AioBingoPluginPanel extends PluginPanel {
     private String currentTeamName;
 
     public AioBingoPluginPanel() {
+        // BingoBoardPanel owns the only scroll pane so its grid can remain pinned.
+        super(false);
         setLayout(new BorderLayout(0, 0));
         setBackground(BingoColors.SURFACE);
 
@@ -117,7 +124,7 @@ public class AioBingoPluginPanel extends PluginPanel {
         brand.add(wordmark);
         linkBar.add(brand, BorderLayout.WEST);
 
-        JPanel supportLinks = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 2));
+        JPanel supportLinks = new JPanel(new FlowLayout(FlowLayout.RIGHT, 1, 4));
         supportLinks.setOpaque(false);
         supportLinks.add(buildImageLinkButton(
             "/net/runelite/client/plugins/info/discord_icon.png",
@@ -132,7 +139,7 @@ public class AioBingoPluginPanel extends PluginPanel {
             new CoffeeIcon(24, BingoColors.GOLD_LIGHT),
             "Support AIO Bingo — buy me a coffee",
             BUY_ME_A_COFFEE_URL,
-            30));
+            26));
         linkBar.add(supportLinks, BorderLayout.EAST);
 
         return linkBar;
@@ -146,7 +153,7 @@ public class AioBingoPluginPanel extends PluginPanel {
             new ImageIcon(tintImage(resizedImage, BingoColors.GOLD_LIGHT)),
             tooltip,
             url,
-            30);
+            26);
     }
 
     private static BufferedImage tintImage(BufferedImage image, Color color) {
@@ -310,9 +317,14 @@ public class AioBingoPluginPanel extends PluginPanel {
         statusText.setFont(new Font(smallFont.getName(), Font.BOLD, smallFont.getSize()));
         statusText.setForeground(BingoColors.PARCHMENT_FAINT);
 
-        progressLabel.setFont(smallFont);
-        progressLabel.setForeground(BingoColors.PARCHMENT_DIM);
-        progressLabel.setVisible(false);
+        boardStatsPanel.setOpaque(false);
+        boardStatsPanel.setVisible(false);
+        boardStatsPanel.add(buildStatCell(
+            tilesStatValue, "TILES", BingoColors.GREEN_LIGHT, true, smallFont));
+        boardStatsPanel.add(buildStatCell(
+            pointsStatValue, "POINTS", BingoColors.GOLD_LIGHT, true, smallFont));
+        boardStatsPanel.add(buildStatCell(
+            linesStatValue, "LINES", BingoColors.PARCHMENT, false, smallFont));
 
         JPanel titleRow = new JPanel(new BorderLayout(6, 0));
         titleRow.setOpaque(false);
@@ -329,14 +341,38 @@ public class AioBingoPluginPanel extends PluginPanel {
         statusActions.add(refreshButton);
         titleRow.add(statusActions, BorderLayout.EAST);
 
-        JPanel summary = new JPanel(new BorderLayout(0, 3));
+        JPanel summary = new JPanel(new BorderLayout(0, 6));
         summary.setBackground(BingoColors.SURFACE_2);
         summary.setBorder(BorderFactory.createCompoundBorder(
             new MatteBorder(0, 0, 1, 0, BingoColors.BORDER),
             new EmptyBorder(6, 8, 5, 8)));
         summary.add(titleRow, BorderLayout.NORTH);
-        summary.add(progressLabel, BorderLayout.CENTER);
+        summary.add(boardStatsPanel, BorderLayout.CENTER);
         return summary;
+    }
+
+    private static JPanel buildStatCell(JLabel value, String caption, Color valueColor,
+                                        boolean divider, Font smallFont) {
+        JPanel cell = new JPanel();
+        cell.setLayout(new BoxLayout(cell, BoxLayout.Y_AXIS));
+        cell.setOpaque(false);
+        cell.setBorder(BorderFactory.createCompoundBorder(
+            divider ? new MatteBorder(0, 0, 0, 1, BingoColors.BORDER) : null,
+            new EmptyBorder(1, 4, 0, 4)));
+
+        value.setFont(new Font(smallFont.getName(), Font.BOLD, smallFont.getSize()));
+        value.setForeground(valueColor);
+        value.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+        JLabel label = new JLabel(caption, SwingConstants.CENTER);
+        label.setFont(new Font(smallFont.getName(), Font.PLAIN,
+            Math.max(8, smallFont.getSize() - 2)));
+        label.setForeground(BingoColors.PARCHMENT_FAINT);
+        label.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+        cell.add(value);
+        cell.add(label);
+        return cell;
     }
 
     private JPanel buildContent() {
@@ -438,7 +474,7 @@ public class AioBingoPluginPanel extends PluginPanel {
         currentTeamName = (progress != null) ? progress.getTeamName() : null;
         boardPanel.update(board, progress);
         updateLeaderboard(leaderboard);
-        updateProgressLabel(progress);
+        updateBoardStats(progress);
     }
 
     public void setTokenStatus(TokenStatus status, BingoBoard board) {
@@ -524,29 +560,30 @@ public class AioBingoPluginPanel extends PluginPanel {
     }
 
     // =========================================================================
-    // Progress label
+    // Board stats
     // =========================================================================
 
-    private void updateProgressLabel(TeamProgress progress) {
+    private void updateBoardStats(TeamProgress progress) {
         if (progress == null) {
-            progressLabel.setText("");
-            progressLabel.setVisible(false);
+            boardStatsPanel.setVisible(false);
             return;
         }
-        StringBuilder sb = new StringBuilder();
-        sb.append(progress.getCompletedTiles()).append("/").append(progress.getTotalTiles()).append(" tiles");
-        if (progress.getTotalPoints() > 0)
-            sb.append("  \u00b7  ").append(progress.getTotalPoints()).append(" pts");
-        if (progress.getLinesCompleted() > 0) {
-            int lines = progress.getLinesCompleted();
-            sb.append("  \u00b7  ").append(lines).append(lines == 1 ? " line" : " lines");
-        }
-        if (progress.isBlackout())
-            sb.append("  \u00b7  \u2605"); // · ★
-        progressLabel.setText(sb.toString());
-        progressLabel.setVisible(true);
-        if (progressLabel.getParent() != null) {
-            progressLabel.getParent().revalidate();
+
+        NumberFormat nf = NumberFormat.getNumberInstance(Locale.US);
+        String tileValue = progress.getCompletedTiles() + "/" + progress.getTotalTiles();
+        if (progress.isBlackout()) tileValue += "  \u2605";
+
+        tilesStatValue.setText(tileValue);
+        pointsStatValue.setText(nf.format(progress.getTotalPoints()));
+        linesStatValue.setText(nf.format(progress.getLinesCompleted()));
+        tilesStatValue.setToolTipText(progress.isBlackout()
+            ? "Board blackout achieved" : "Tiles completed");
+        pointsStatValue.setToolTipText("Total points");
+        linesStatValue.setToolTipText("Lines completed");
+
+        boardStatsPanel.setVisible(true);
+        if (boardStatsPanel.getParent() != null) {
+            boardStatsPanel.getParent().revalidate();
         }
     }
 

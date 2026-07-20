@@ -141,9 +141,10 @@ public class TileDetailDialog extends JDialog {
             if (progress != null && !progress.isCompleted()) {
                 body.add(sectionLabel("Progress"));
                 body.add(Box.createRigidArea(new Dimension(0, 4)));
-                long nextThreshold = nextTierThreshold(tile, currentTier);
+                long nextThreshold = tile.getNextTierThreshold(currentTier);
                 body.add(progressBar(progress.getCurrentValue(), nextThreshold,
-                    BingoColors.tileAccent(typeName), nf));
+                    BingoColors.tileAccent(typeName), nf,
+                    tile.getTierProgressRatio(progress.getCurrentValue(), currentTier)));
             }
 
         } else if (!isFree) {
@@ -153,7 +154,7 @@ public class TileDetailDialog extends JDialog {
 
             if (tile.getRequirement() > 1 && progress != null) {
                 body.add(progressBar(progress.getCurrentValue(), progress.getRequiredValue(),
-                    BingoColors.tileAccent(typeName), nf));
+                    BingoColors.tileAccent(typeName), nf, progress.getProgressRatio()));
             } else if (complete) {
                 JLabel done = new JLabel("\u2713 Completed");
                 done.setFont(FontManager.getRunescapeSmallFont());
@@ -250,13 +251,14 @@ public class TileDetailDialog extends JDialog {
         return row;
     }
 
-    private static JPanel progressBar(long current, long required, Color accent, NumberFormat nf) {
+    private static JPanel progressBar(long current, long required, Color accent, NumberFormat nf,
+                                      double progressRatio) {
         JPanel wrap = new JPanel();
         wrap.setLayout(new BoxLayout(wrap, BoxLayout.Y_AXIS));
         wrap.setOpaque(false);
         wrap.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        float ratio = required > 0 ? Math.min(1f, (float) current / required) : 0f;
+        float ratio = (float) Math.max(0.0, Math.min(1.0, progressRatio));
 
         // Bar
         JPanel bar = new JPanel() {
@@ -299,13 +301,6 @@ public class TileDetailDialog extends JDialog {
         label.setForeground(BingoColors.PARCHMENT_FAINT);
         label.setAlignmentX(Component.LEFT_ALIGNMENT);
         return label;
-    }
-
-    private static long nextTierThreshold(BingoTile tile, int currentTier) {
-        if (currentTier < 1 && tile.getTier1Threshold() != null) return tile.getTier1Threshold();
-        if (currentTier < 2 && tile.getTier2Threshold() != null) return tile.getTier2Threshold();
-        if (currentTier < 3 && tile.getTier3Threshold() != null) return tile.getTier3Threshold();
-        return 0;
     }
 
     private static String escapeHtml(String s) {

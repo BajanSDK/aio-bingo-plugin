@@ -74,4 +74,27 @@ public class BingoTile {
         if (tier1Threshold != null) return 1;
         return 0;
     }
+
+    /** Returns the threshold for the next configured tier, or 0 when all tiers are reached. */
+    public long getNextTierThreshold(int currentTier) {
+        if (currentTier < 1 && tier1Threshold != null) return tier1Threshold;
+        if (currentTier < 2 && tier2Threshold != null) return tier2Threshold;
+        if (currentTier < 3 && tier3Threshold != null) return tier3Threshold;
+        return 0;
+    }
+
+    /** Returns progress through the current tier range, clamped to 0.0-1.0. */
+    public double getTierProgressRatio(long currentValue, int currentTier) {
+        long previousThreshold = 0;
+        if (currentTier >= 3 && tier3Threshold != null) previousThreshold = tier3Threshold;
+        else if (currentTier >= 2 && tier2Threshold != null) previousThreshold = tier2Threshold;
+        else if (currentTier >= 1 && tier1Threshold != null) previousThreshold = tier1Threshold;
+
+        long nextThreshold = getNextTierThreshold(currentTier);
+        if (nextThreshold <= previousThreshold) return 1.0;
+
+        double ratio = (double) (currentValue - previousThreshold)
+            / (nextThreshold - previousThreshold);
+        return Math.max(0.0, Math.min(1.0, ratio));
+    }
 }
